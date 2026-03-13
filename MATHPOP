@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Readventure Math Game with Levels</title>
+<style>
+body {
+  font-family: 'Arial', sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(135deg, #6a1b9a, #ab47bc);
+  color: white;
+}
+h1 { margin-top: 20px; font-size: 36px; }
+.screen { display: none; padding: 20px; }
+.visible { display: block; }
+button {
+  padding: 10px 20px;
+  font-size: 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+button:hover { opacity: 0.8; }
+.selection-grid {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.selection-grid div {
+  border: 3px solid white;
+  border-radius: 15px;
+  padding: 10px;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.selection-grid div.selected { border-color: yellow; transform: scale(1.1);}
+.selection-grid img { width: 100px; height: 100px; border-radius: 10px; }
+.card {
+  width: 200px; height: 250px; margin: 20px auto;
+  border-radius: 15px; display: flex;
+  justify-content: center; align-items: center;
+  font-size: 28px; font-weight: bold; color: white;
+  perspective: 1000px; cursor: pointer;
+}
+.cardInner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; }
+.card.flipped .cardInner { transform: rotateY(180deg); }
+.cardFront, .cardBack { position: absolute; width: 100%; height: 100%; border-radius: 15px; backface-visibility: hidden; display: flex; justify-content: center; align-items: center; }
+.cardFront { background: #e53935; }
+.cardBack { background: #1e88e5; transform: rotateY(180deg); }
+.choiceBtn { display: block; margin: 8px auto; padding: 10px 20px; font-size: 18px; border-radius: 10px; background: #fdd835; color: #333; cursor: pointer; }
+.choiceBtn:hover { background: #fbc02d; }
+#scoreboard, #timer, #message { margin-top: 10px; }
+#leaderboard { margin-top: 20px; font-size: 18px; background: white; padding: 10px; border-radius: 10px; display: inline-block; color: black; }
+#restartBtn { margin-top: 15px; padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; background: #0288d1; color: white; cursor: pointer; }
+#restartBtn:hover { background: #0277bd; }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="startScreen" class="screen visible">
+  <h1>READVENTURE</h1>
+  <button onclick="showNameScreen()">START</button>
+</div>
+
+<!-- Name Input -->
+<div id="nameScreen" class="screen">
+  <h2>Type your name</h2>
+  <input type="text" id="playerNameInput" placeholder="Your name">
+  <br><br>
+  <button onclick="showCharacterScreen()">Enter</button>
+</div>
+
+<!-- Character Selection -->
+<div id="characterScreen" class="screen">
+  <h2>Choose your character</h2>
+  <div class="selection-grid" id="characterGrid">
+    <div onclick="selectCharacter(this)"><img src="https://via.placeholder.com/100?text=Boy"><br>Boy</div>
+    <div onclick="selectCharacter(this)"><img src="https://via.placeholder.com/100?text=Girl"><br>Girl</div>
+  </div>
+  <br>
+  <button onclick="showTeacherScreen()">Next</button>
+</div>
+
+<!-- Teacher Selection -->
+<div id="teacherScreen" class="screen">
+  <h2>Choose your guide teacher</h2>
+  <div class="selection-grid" id="teacherGrid">
+    <div onclick="selectTeacher(this)"><img src="https://via.placeholder.com/100?text=Amy"><br>Amy</div>
+    <div onclick="selectTeacher(this)"><img src="https://via.placeholder.com/100?text=Regina"><br>Regina</div>
+    <div onclick="selectTeacher(this)"><img src="https://via.placeholder.com/100?text=Mariel"><br>Mariel</div>
+    <div onclick="selectTeacher(this)"><img src="https://via.placeholder.com/100?text=Laia"><br>Laia</div>
+    <div onclick="selectTeacher(this)"><img src="https://via.placeholder.com/100?text=Apple"><br>Apple</div>
+  </div>
+  <br>
+  <button onclick="showLevelScreen()">Next</button>
+</div>
+
+<!-- Level Selection -->
+<div id="levelScreen" class="screen">
+  <h2>Choose Level</h2>
+  <div class="selection-grid">
+    <div onclick="selectLevel('Easy', 300)">Easy (5 min)</div>
+    <div onclick="selectLevel('Medium', 420)">Medium (7 min)</div>
+    <div onclick="selectLevel('Hard', 600)">Hard (10 min)</div>
+  </div>
+</div>
+
+<!-- Math Game Screen -->
+<div id="gameScreen" class="screen">
+  <div id="playerNameDisplay"></div>
+  <div id="scoreboard">Score: 0</div>
+  <div id="timer">Time left: 60s</div>
+
+  <div class="card" id="card" onclick="nextCardClicked()">
+    <div class="cardInner">
+      <div class="cardFront" id="cardFront"></div>
+      <div class="cardBack" id="cardBack">Math Card</div>
+    </div>
+  </div>
+
+  <div id="choices"></div>
+  <div id="message"></div>
+  <button id="restartBtn" onclick="restartGame()" style="display:none;">Restart Game</button>
+</div>
+
+<!-- Leaderboard -->
+<div id="leaderboard">
+  <b>Leaderboard</b>
+  <div id="leaderboardList">No scores yet</div>
+</div>
+
+<script>
+let playerName = "";
+let score = 0;
+let card = {};
+let colors = ["#e53935","#fbc02d","#43a047","#1e88e5"];
+let gameTime = 60;
+let timerInterval;
+let gameOver = false;
+let answered = false;
+let leaderboard = [];
+let selectedCharacter = null;
+let selectedTeacher = null;
+let selectedLevel = null;
+
+// Screen navigation
+function showScreen(id){ document.querySelectorAll(".screen").forEach(s => s.classList.remove("visible")); document.getElementById(id).classList.add("visible"); }
+function showNameScreen(){ showScreen('nameScreen'); }
+function showCharacterScreen(){ showScreen('characterScreen'); }
+function showTeacherScreen(){ showScreen('teacherScreen'); }
+function showLevelScreen(){ showScreen('levelScreen'); }
+
+function selectCharacter(div){ document.querySelectorAll("#characterGrid div").forEach(d=>d.classList.remove("selected")); div.classList.add("selected"); selectedCharacter = div.innerText; }
+function selectTeacher(div){ document.querySelectorAll("#teacherGrid div").forEach(d=>d.classList.remove("selected")); div.classList.add("selected"); selectedTeacher = div.innerText; }
+function selectLevel(levelName, timeSec){ selectedLevel = {name: levelName, time: timeSec}; startGame(); }
+
+// Generate card
+function generateCard(){
+  let ops=["+","-","*","/"];
+  let op=ops[Math.floor(Math.random()*ops.length)];
+  let a=Math.floor(Math.random()*50)+1;
+  let b=Math.floor(Math.random()*50)+1;
+  if(op=="/"){a=a*b;}
+  let question=`${a} ${op} ${b}`;
+  let answer=eval(question);
+  let explanation=`${a} ${op} ${b} = ${answer}`;
+  let color=colors[Math.floor(Math.random()*colors.length)];
+  return {question, answer, explanation, color};
+}
+
+// Start game
+function startGame(){
+  if(selectedCharacter==null || selectedTeacher==null || selectedLevel==null){ alert("Please select everything!"); return; }
+  playerName = document.getElementById("playerNameInput").value.trim();
+  if(playerName===""){ alert("Enter your name!"); return; }
+  gameTime = selectedLevel.time;
+  showScreen('gameScreen');
+  score = 0; gameOver=false; answered=false;
+  document.getElementById("restartBtn").style.display="none";
+  nextCard();
+  updateScoreboard();
+  startTimer();
+  document.getElementById("playerNameDisplay").innerHTML = `Player: ${playerName} (${selectedLevel.name})`;
+}
+
+// Timer
+function startTimer(){
+  document.getElementById("timer").innerHTML="Time left: "+gameTime+"s";
+  timerInterval=setInterval(()=>{
+    gameTime--;
+    document.getElementById("timer").innerHTML="Time left: "+gameTime+"s";
+    if(gameTime<=0){ clearInterval(timerInterval); endGame(); }
+  },1000);
+}
+
+// Next card
+function nextCard(){
+  card=generateCard();
+  document.getElementById("cardFront").style.background=card.color;
+  document.getElementById("cardFront").innerHTML=card.question;
+  document.getElementById("card").classList.remove("flipped");
+  generateChoices();
+  document.getElementById("message").innerHTML="";
+  answered=false;
+}
+
+// Choices
+function generateChoices(){
+  let choices=[card.answer];
+  while(choices.length<4){
+    let wrong=card.answer+Math.floor(Math.random()*20)-10;
+    if(!choices.includes(wrong)) choices.push(wrong);
+  }
+  choices.sort(()=>Math.random()-0.5);
+  let html="";
+  choices.forEach(c=>{ html+=`<button class="choiceBtn" onclick="selectAnswer(${c})">${c}</button>`; });
+  document.getElementById("choices").innerHTML=html;
+}
+
+// Select answer
+function selectAnswer(user){
+  if(answered || gameOver) return;
+  answered=true;
+  document.getElementById("choices").innerHTML="";
+  document.getElementById("card").classList.add("flipped");
+  if(user==card.answer){
+    score++;
+    document.getElementById("message").innerHTML="✅ Correct! "+card.explanation+"<br>Click card for next question.";
+  } else {
+    document.getElementById("message").innerHTML=`❌ Wrong! ${card.explanation}.<br>Click card for next question.`;
+  }
+  updateScoreboard();
+}
+function nextCardClicked(){ if(answered && !gameOver){ nextCard(); } }
+function updateScoreboard(){ document.getElementById("scoreboard").innerHTML="Score: "+score; }
+
+function endGame(){
+  gameOver=true;
+  document.getElementById("message").innerHTML="⏱ Time's up! Final score: "+score;
+  document.getElementById("choices").innerHTML="";
+  document.getElementById("restartBtn").style.display="inline-block";
+  addToLeaderboard(playerName, score);
+  displayLeaderboard();
+}
+
+function restartGame(){
+  showScreen('startScreen');
+  document.getElementById("playerNameInput").value="";
+  selectedCharacter = null;
+  selectedTeacher = null;
+  selectedLevel = null;
+}
+
+// Leaderboard
+function addToLeaderboard(name, score){ leaderboard.push({name:name,score:score}); leaderboard.sort((a,b)=>b.score-a.score); }
+function displayLeaderboard(){ let html=""; leaderboard.forEach((p,i)=>{ html+=`${i+1}. ${p.name} - ${p.score}<br>`; }); document.getElementById("leaderboardList").innerHTML=html; }
+</script>
+
+</body>
+</html>
